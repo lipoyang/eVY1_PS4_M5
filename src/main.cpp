@@ -129,7 +129,7 @@ void loop()
       delay(10);
 
       // キーの計算
-      key1 = KEY_TABLE[keyIndex] + octaveUpDown * 12;
+      key1 = KEY_TABLE[keyIndex] + octaveUpDown * 12 + scale;
       key2 = key1 + 4; // 長3和音(長3度)
       key3 = key1 + 7; // 長3和音(完全5度)
       int velocity = (master_vol > 0) ? master_vol * 4 - 1 : 0;
@@ -150,7 +150,7 @@ void loop()
       if(tone_no >= 3) sendMidiMessage(0x91,key1,velocity);
 
       key12 = key1 % 12;
-      octave = key1 / 12;
+      octave = key1 / 12 - 1;
       vol = 0x7f;
     }
   }
