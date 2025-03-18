@@ -1,0 +1,164 @@
+#include <Arduino.h>
+#include <PS4Controller.h>
+#include "note.h"
+
+// M5StackのUI処理(画面表示とボタン操作)
+void DisplayUI_begin();
+void DisplayUI_loop(int octave, int key12, int vol);
+void DipslayUI_error(const char* error);
+
+// 設定 (UIで変更可能)
+int master_vol = 127;    // マスター音量
+int tone_no = 0;         // 音色
+int scale = 0;           // 音階(ハ長調からどれだけ上がるか下がるか)
+
+// ドレミファソラシドの歌詞文字列 (Vocaloidの発音記号)
+static const char* DoReMi[] 
+  = {"d o", "4 e", "m' i", "p\\ a", "s o", "4 a", "S i", "d o"};
+// ドレミファソラシドのキー
+static const int KEY_TABLE[]
+  = {NOTE_C4, NOTE_D4, NOTE_E4, NOTE_F4, NOTE_G4, NOTE_A4, NOTE_B4, NOTE_C5};
+// 発声中のキー
+static int key1 = NOTE_C4;
+static int key2 = NOTE_C4;
+static int key3 = NOTE_C4;
+
+// MIDIメッセージ送信 (パラメータ1バイト)
+static void sendMidiMessage(int cmd, int d1)
+{
+  Serial2.write(cmd);
+  Serial2.write(d1);
+}
+
+// MIDIメッセージ送信 (パラメータ2バイト)
+static void sendMidiMessage(int cmd, int d1, int d2)
+{
+  Serial2.write(cmd);
+  Serial2.write(d1);
+  Serial2.write(d2);
+}
+
+// MIDIメッセージ送信 (歌詞)
+void sendLylic(const char* lylic)
+{
+  // ヘッダ
+  Serial2.write(0xF0);
+  Serial2.write(0x43);
+  Serial2.write(0x79);
+  Serial2.write(0x09);
+  Serial2.write((uint8_t)0x00);
+  Serial2.write(0x50);
+  Serial2.write(0x10);
+  // 歌詞
+  Serial2.write(lylic);
+  // フッタ
+  Serial2.write((uint8_t)0x00);
+  Serial2.write(0xF7);
+}
+
+// 初期化
+void setup()
+{
+  // UIの初期化
+  DisplayUI_begin();
+//Serial.begin(115200); // ← DisplayUI_begin()を実行する場合には不要
+
+  // DualShock4の初期化
+  PS4.begin();
+
+  // Serial2のTX(17)をMIDI送信に使用
+  // MIDIのボーレートは31250固定
+  Serial2.begin(31250);
+  // eVY1の初期化を待つ
+  delay(5000);
+
+  // 音色の設定 (初期値ピアノ)
+  sendMidiMessage(0xC1, 0);
+  sendMidiMessage(0xC2, 0);
+  sendMidiMessage(0xC3, 0);
+  
+  Serial.println("start!");
+}
+
+// メインループ
+void loop()
+{
+  static int octave = 0;  // オクターブ
+  static int key12 = 0;   // 12音音階番号
+  static int vol = 0;     // 音量
+  static int tone_prev = -1; // 前回の音色
+
+  // DualShock4が接続されている場合
+  if (PS4.isConnected())
+  {
+    // ボタンの状態を取得
+    static ps4_button_t button_prev = {0};
+    ps4_button_t button = PS4.getButton();
+    int keyIndex = -1;
+    if (!button_prev.down     && button.down)     keyIndex = 0;
+    if (!button_prev.left     && button.left)     keyIndex = 1;
+    if (!button_prev.right    && button.right)    keyIndex = 2;
+    if (!button_prev.up       && button.up)       keyIndex = 3;
+    if (!button_prev.cross    && button.cross)    keyIndex = 4;
+    if (!button_prev.square   && button.square)   keyIndex = 5;
+    if (!button_prev.circle   && button.circle)   keyIndex = 6;
+    if (!button_prev.triangle && button.triangle) keyIndex = 7;
+    if (button.options) keyIndex = -2;
+    int octaveUpDown = 0;
+    if (button.l1) octaveUpDown = -1;
+    if (button.r1) octaveUpDown =  1;
+    button_prev = button;
+
+    // ノートオフするか？
+    if(keyIndex == -2)
+    {
+      sendMidiMessage(0x80,key1, 0x7f);
+      sendMidiMessage(0x81,key1, 0x7f);
+      sendMidiMessage(0x82,key2, 0x7f);
+      sendMidiMessage(0x83,key3, 0x7f);
+      vol = 0;
+    }
+    // ノートオンするか？
+    if(keyIndex >= 0)
+    {
+      // まずノートオフ
+      sendMidiMessage(0x80,key1, 0x7f);
+      sendMidiMessage(0x81,key1, 0x7f);
+      sendMidiMessage(0x82,key2, 0x7f);
+      sendMidiMessage(0x83,key3, 0x7f);
+      delay(10);
+
+      // キーの計算
+      key1 = KEY_TABLE[keyIndex] + octaveUpDown * 12;
+      key2 = key1 + 4; // 長3和音(長3度)
+      key3 = key1 + 7; // 長3和音(完全5度)
+     
+      // 歌詞送信
+      Serial.println(DoReMi[keyIndex]);
+      sendLylic(DoReMi[keyIndex]);
+      delay(10);
+
+      // ノートオン
+      if(tone_no <= 1) sendMidiMessage(0x90,key1,0x7f);
+      if(tone_no >= 1) sendMidiMessage(0x91,key1,0x60);
+      if(tone_no == 1 || tone_no == 2) sendMidiMessage(0x92,key2,0x60);
+      if(tone_no == 1 || tone_no == 2) sendMidiMessage(0x93,key3,0x60);
+
+      key12 = key1 % 12;
+      octave = key1 / 12;
+      vol = 0x7f;
+    }
+  }
+  // UIの処理
+  DisplayUI_loop(octave, key12, vol);
+  if(tone_no != tone_prev)
+  {
+    // 音色の設定
+    static const int TONE_TABLE[] 
+      = {0, 0, 0, 0, 19, 81}; // 0:ピアノ, 19:パイプオルガン, 81:シンセ
+    sendMidiMessage(0xC1, TONE_TABLE[tone_no]);
+    tone_prev = tone_no;
+  }
+  delay(10);
+}
+
