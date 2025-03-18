@@ -8,7 +8,7 @@ void DisplayUI_loop(int octave, int key12, int vol);
 void DipslayUI_error(const char* error);
 
 // 設定 (UIで変更可能)
-int master_vol = 127;    // マスター音量
+int master_vol = 32 ;    // マスター音量
 int tone_no = 0;         // 音色
 int scale = 0;           // 音階(ハ長調からどれだけ上がるか下がるか)
 
@@ -122,16 +122,18 @@ void loop()
     if(keyIndex >= 0)
     {
       // まずノートオフ
-      sendMidiMessage(0x80,key1, 0x7f);
-      sendMidiMessage(0x81,key1, 0x7f);
-      sendMidiMessage(0x82,key2, 0x7f);
-      sendMidiMessage(0x83,key3, 0x7f);
+      sendMidiMessage(0x80,key1, 0);
+      sendMidiMessage(0x81,key1, 0);
+      sendMidiMessage(0x82,key2, 0);
+      sendMidiMessage(0x83,key3, 0);
       delay(10);
 
       // キーの計算
       key1 = KEY_TABLE[keyIndex] + octaveUpDown * 12;
       key2 = key1 + 4; // 長3和音(長3度)
       key3 = key1 + 7; // 長3和音(完全5度)
+      int velocity = (master_vol > 0) ? master_vol * 4 - 1 : 0;
+      int velocity_chord = velocity * 3 / 4;
      
       // 歌詞送信
       Serial.println(DoReMi[keyIndex]);
@@ -139,10 +141,13 @@ void loop()
       delay(10);
 
       // ノートオン
-      if(tone_no <= 1) sendMidiMessage(0x90,key1,0x7f);
-      if(tone_no >= 1) sendMidiMessage(0x91,key1,0x60);
-      if(tone_no == 1 || tone_no == 2) sendMidiMessage(0x92,key2,0x60);
-      if(tone_no == 1 || tone_no == 2) sendMidiMessage(0x93,key3,0x60);
+      if(tone_no <= 1) sendMidiMessage(0x90,key1,velocity);
+      if(tone_no == 1 || tone_no == 2) {
+        sendMidiMessage(0x91,key1,velocity_chord);
+        sendMidiMessage(0x92,key2,velocity_chord);
+        sendMidiMessage(0x93,key3,velocity_chord);
+      }
+      if(tone_no >= 3) sendMidiMessage(0x91,key1,velocity);
 
       key12 = key1 % 12;
       octave = key1 / 12;

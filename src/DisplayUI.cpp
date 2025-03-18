@@ -129,10 +129,8 @@ void DisplayUI_loop(int octave, int key12, int vol)
                 break;
             case POS_VOLUME:
                 master_vol += change_val;
-                if(master_vol == 31) master_vol = 0;
-                if(master_vol ==  1) master_vol = 32;
-                if(master_vol <   0) master_vol = 0;
-                if(master_vol >  63) master_vol = 63;
+                if(master_vol > 32) master_vol = 32;
+                if(master_vol <  0) master_vol = 0;
                 break;
             }
             DisplayUI_settings();
@@ -215,8 +213,7 @@ static void DisplayUI_settings()
     }
     spriteVolume.fillRect(0,0,W_VOLUME - P_VOLUME,H_CHAR,BLACK);
     spriteVolume.setCursor(0,0);
-    int vol = (master_vol >= 32) ? master_vol - 31 : 0;
-    spriteVolume.printf("%d", vol);
+    spriteVolume.printf("%d", master_vol);
     spriteVolume.pushSprite(X_VOLUME + P_VOLUME, Y_VOLUME);
 }
 
