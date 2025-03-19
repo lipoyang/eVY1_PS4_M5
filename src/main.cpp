@@ -81,10 +81,11 @@ void setup()
 // メインループ
 void loop()
 {
-  static int octave = 0;  // オクターブ
-  static int key12 = 0;   // 12音音階番号
-  static int vol = 0;     // 音量
-  static int tone_prev = -1; // 前回の音色
+  static int octave = 0;         // オクターブ
+  static int key12 = 0;          // 12音音階番号
+  static int expression = 127;   // 音量
+  static int tone_prev = -1;     // 前回の音色
+  static bool isPlaying = false; // 発声中か？
 
   // DualShock4が接続されている場合
   if (PS4.isConnected())
@@ -93,7 +94,6 @@ void loop()
     static ps4_button_t button_prev = {0};
     ps4_button_t button = PS4.getButton();
     int key = -1;
-    int semitone = 0;
     if (!button_prev.down     && button.down)     key = NOTE_C4;
     if (!button_prev.left     && button.left)     key = NOTE_D4;
     if (!button_prev.right    && button.right)    key = NOTE_E4;
@@ -106,18 +106,39 @@ void loop()
     int octaveUpDown = 0;
     if (button.l1) octaveUpDown = -1;
     if (button.r1) octaveUpDown =  1;
+    int semitone = 0;
     if (button.l3) semitone = -1;
     if (button.r3) semitone =  1;
     button_prev = button;
 
+    // 音量の変化
+    int exp_now = 127 - PS4.R2Value() / 2;
+    if (exp_now != expression)
+    {
+      expression = exp_now;
+      if(expression == 0){
+        // 音量ゼロならノートオフ
+        sendMidiMessage(0x80,key1, 0);
+        sendMidiMessage(0x81,key1, 0);
+        sendMidiMessage(0x82,key2, 0);
+        sendMidiMessage(0x83,key3, 0);
+        isPlaying = false;
+      }else{
+        sendMidiMessage(0xB0, 0x0B, expression);
+        sendMidiMessage(0xB1, 0x0B, expression);
+        sendMidiMessage(0xB2, 0x0B, expression);
+        sendMidiMessage(0xB3, 0x0B, expression);
+      }
+    }
+
     // ノートオフするか？
     if(key == -2)
     {
-      sendMidiMessage(0x80,key1, 0x7f);
-      sendMidiMessage(0x81,key1, 0x7f);
-      sendMidiMessage(0x82,key2, 0x7f);
-      sendMidiMessage(0x83,key3, 0x7f);
-      vol = 0;
+      sendMidiMessage(0x80,key1, 0);
+      sendMidiMessage(0x81,key1, 0);
+      sendMidiMessage(0x82,key2, 0);
+      sendMidiMessage(0x83,key3, 0);
+      isPlaying = false;
     }
     // ノートオンするか？
     if(key >= 0)
@@ -138,8 +159,7 @@ void loop()
 
       key12 = key1 % 12;
       octave = key1 / 12 - 1;
-      vol = 0x7f;
-     
+
       // 歌詞送信
       Serial.println(DoReMi[key12]);
       sendLylic(DoReMi[key12]);
@@ -153,9 +173,12 @@ void loop()
         sendMidiMessage(0x93,key3,velocity_chord);
       }
       if(tone_no >= 3) sendMidiMessage(0x91,key1,velocity);
+
+      isPlaying = true;
     }
   }
   // UIの処理
+  int vol = (isPlaying) ? expression : 0;
   DisplayUI_loop(octave, key12, vol);
   if(tone_no != tone_prev)
   {
