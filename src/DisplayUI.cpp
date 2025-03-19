@@ -236,6 +236,8 @@ static void DisplayUI_sound(int octave, int key12, int vol)
     
     // 音量によって明度を変える
     int index = octave - 2;
+    if(index < 0) index = 0;
+    if(index > 5) index = 5;
     uint16_t r = COLOR_TABLE[index][0];
     uint16_t g = COLOR_TABLE[index][1];
     uint16_t b = COLOR_TABLE[index][2];

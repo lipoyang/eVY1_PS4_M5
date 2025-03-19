@@ -14,10 +14,8 @@ int scale = 0;           // 音階(ハ長調からどれだけ上がるか下が
 
 // ドレミファソラシドの歌詞文字列 (Vocaloidの発音記号)
 static const char* DoReMi[] 
-  = {"d o", "4 e", "m' i", "p\\ a", "s o", "4 a", "S i", "d o"};
-// ドレミファソラシドのキー
-static const int KEY_TABLE[]
-  = {NOTE_C4, NOTE_D4, NOTE_E4, NOTE_F4, NOTE_G4, NOTE_A4, NOTE_B4, NOTE_C5};
+  = {"d o",    "d e",  "4 e", "4' i",  "m' i", "p\\ a", 
+     "p\\' i", "s o",  "s a", "4 a",   "tS i",  "S i"};
 // 発声中のキー
 static int key1 = NOTE_C4;
 static int key2 = NOTE_C4;
@@ -94,23 +92,26 @@ void loop()
     // ボタンの状態を取得
     static ps4_button_t button_prev = {0};
     ps4_button_t button = PS4.getButton();
-    int keyIndex = -1;
-    if (!button_prev.down     && button.down)     keyIndex = 0;
-    if (!button_prev.left     && button.left)     keyIndex = 1;
-    if (!button_prev.right    && button.right)    keyIndex = 2;
-    if (!button_prev.up       && button.up)       keyIndex = 3;
-    if (!button_prev.cross    && button.cross)    keyIndex = 4;
-    if (!button_prev.square   && button.square)   keyIndex = 5;
-    if (!button_prev.circle   && button.circle)   keyIndex = 6;
-    if (!button_prev.triangle && button.triangle) keyIndex = 7;
-    if (button.options) keyIndex = -2;
+    int key = -1;
+    int semitone = 0;
+    if (!button_prev.down     && button.down)     key = NOTE_C4;
+    if (!button_prev.left     && button.left)     key = NOTE_D4;
+    if (!button_prev.right    && button.right)    key = NOTE_E4;
+    if (!button_prev.up       && button.up)       key = NOTE_F4;
+    if (!button_prev.cross    && button.cross)    key = NOTE_G4;
+    if (!button_prev.square   && button.square)   key = NOTE_A4;
+    if (!button_prev.circle   && button.circle)   key = NOTE_B4;
+    if (!button_prev.triangle && button.triangle) key = NOTE_C5;
+    if (button.options) key = -2;
     int octaveUpDown = 0;
     if (button.l1) octaveUpDown = -1;
     if (button.r1) octaveUpDown =  1;
+    if (button.l3) semitone = -1;
+    if (button.r3) semitone =  1;
     button_prev = button;
 
     // ノートオフするか？
-    if(keyIndex == -2)
+    if(key == -2)
     {
       sendMidiMessage(0x80,key1, 0x7f);
       sendMidiMessage(0x81,key1, 0x7f);
@@ -119,7 +120,7 @@ void loop()
       vol = 0;
     }
     // ノートオンするか？
-    if(keyIndex >= 0)
+    if(key >= 0)
     {
       // まずノートオフ
       sendMidiMessage(0x80,key1, 0);
@@ -129,15 +130,19 @@ void loop()
       delay(10);
 
       // キーの計算
-      key1 = KEY_TABLE[keyIndex] + octaveUpDown * 12 + scale;
+      key1 = key + semitone + octaveUpDown * 12 + scale;
       key2 = key1 + 4; // 長3和音(長3度)
       key3 = key1 + 7; // 長3和音(完全5度)
       int velocity = (master_vol > 0) ? master_vol * 4 - 1 : 0;
       int velocity_chord = velocity * 3 / 4;
+
+      key12 = key1 % 12;
+      octave = key1 / 12 - 1;
+      vol = 0x7f;
      
       // 歌詞送信
-      Serial.println(DoReMi[keyIndex]);
-      sendLylic(DoReMi[keyIndex]);
+      Serial.println(DoReMi[key12]);
+      sendLylic(DoReMi[key12]);
       delay(10);
 
       // ノートオン
@@ -148,10 +153,6 @@ void loop()
         sendMidiMessage(0x93,key3,velocity_chord);
       }
       if(tone_no >= 3) sendMidiMessage(0x91,key1,velocity);
-
-      key12 = key1 % 12;
-      octave = key1 / 12 - 1;
-      vol = 0x7f;
     }
   }
   // UIの処理
