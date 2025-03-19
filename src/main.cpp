@@ -14,8 +14,8 @@ int scale = 0;           // 音階(ハ長調からどれだけ上がるか下が
 
 // ドレミファソラシドの歌詞文字列 (Vocaloidの発音記号)
 static const char* DoReMi[] 
-  = {"d o",    "d e",  "4 e", "4' i",  "m' i", "p\\ a", 
-     "p\\' i", "s o",  "s a", "4 a",   "tS i",  "S i"};
+  = {"d o",    "d e", "4 e", "4' i", "m' i", "p\\ a", 
+     "p\\' i", "s o", "s a", "4 a",  "tS i", "S i"};
 // 発声中のキー
 static int key1 = NOTE_C4;
 static int key2 = NOTE_C4;
