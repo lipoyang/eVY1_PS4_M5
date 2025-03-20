@@ -100,6 +100,11 @@ void DisplayUI_begin()
 void DisplayUI_loop(int octave, int key12, int vol)
 {
     M5.update();
+
+    // 電源オフ判定
+    if(M5.BtnA.isPressed() && M5.BtnC.isPressed()){
+        M5.powerOFF();
+    }
     
     // ボタン入力判定とそれに対する処理
     if (M5.BtnA.wasPressed()) {
